@@ -1,0 +1,71 @@
+services:
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ollama_postgres
+    environment:
+      POSTGRES_DB: ollama_db
+      POSTGRES_USER: ollama_user
+      POSTGRES_PASSWORD: ollama_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ollama_network
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+
+  mongo:
+    image: mongo:7
+    container_name: ollama_mongo
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - ollama_network
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama_server
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - ollama_network
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+
+  backend:
+    build:
+      context: ../ollama-chat-clean-backend
+    container_name: ollama_backend
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ollama_db
+      SPRING_DATASOURCE_USERNAME: ollama_user
+      SPRING_DATASOURCE_PASSWORD: ollama_pass
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/ollama_db
+      OLLAMA_BASE_URL: http://ollama:11434
+    depends_on:
+      - postgres
+      - mongo
+      - ollama
+    networks:
+      - ollama_network
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+
+networks:
+  ollama_network:
+    name: ollama_network
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongo_data:
+  ollama_data:
